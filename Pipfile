@@ -1,0 +1,30 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+graphene = "*"
+pandas = "*"
+pony = "*"
+"psycopg2cffi" = "*"
+"flake8" = "*"
+flask = "*"
+flask-graphql = "*"
+requests = "*"
+"psycopg2" = "*"
+sqlalchemy = "*"
+certifi = "*"
+census = "*"
+us = "*"
+geocoder = "*"
+behave = "*"
+tabula-py = "*"
+zappa = "*"
+jupyterlab = "*"
+lxml = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.6"
