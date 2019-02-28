@@ -9,9 +9,6 @@ from pony.orm.core import Entity
 
 from models import Company as c
 from models import CustomerZone as cz
-from models import Zone as z
-from models import Breakdown as b
-from models import Policy as p
 # from pandas.io.json import json_normalize
 
 db = Database()
@@ -73,8 +70,12 @@ def get_company(id):
 
     company = c[id]
 
+    policy_count = 0
+    tiv = 0
     policies = []
     for policy in company.policies:
+        policy_count += 1
+        tiv += policy.tiv
         policies.append(policy)
 
     zones = []
@@ -84,6 +85,8 @@ def get_company(id):
     return Company(
                  id=company.id,
                  name=company.name,
+                 policy_count=policy_count,
+                 tiv=tiv,
                  policies=policies,
                  zones=zones)
 
@@ -188,6 +191,8 @@ class CustomerZone(ObjectType):
 class Company(ObjectType):
     id = ID()
     name = String()
+    tiv = Float()
+    policy_count = Int()
     policies = List(Policy)
     zones = List(CustomerZone)
 
