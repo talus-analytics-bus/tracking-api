@@ -72,22 +72,44 @@ def get_company(id):
 
     policy_count = 0
     tiv = 0
-    policies = []
     for policy in company.policies:
         policy_count += 1
         tiv += policy.tiv
-        policies.append(policy)
 
     zones = []
-    for zone in company.zones:
-        zones.append(zone)
+    for company_zone in company.zones:
+        zone = company_zone.zone
+
+        zips = []
+        for zip in zone.zips:
+            zips.append(zip.code)
+
+        counties = []
+        for county in zone.county:
+            counties.append(county)
+
+        breakdown = company_zone.breakdown
+        _ = breakdown.none_percent
+        _ = breakdown.minimal_percent
+        _ = breakdown.moderate_percent
+        _ = breakdown.high_percent
+        _ = breakdown.extreme_percent
+
+        _ = zone.id
+        _ = zone.size
+        _ = zone.state
+        _ = zone.area
+
+        company_zone.zips = zips
+        company_zone.counties = counties
+        company_zone.breakdown = breakdown
+        zones.append(company_zone)
 
     return Company(
                  id=company.id,
                  name=company.name,
                  policy_count=policy_count,
                  tiv=tiv,
-                 policies=policies,
                  zones=zones)
 
 
@@ -112,14 +134,20 @@ def get_customer_zone(id):
 
     zone = customer_zone.zone
     _ = zone.id
-    _ = zone.size
+    zone_size = zone.size
     _ = zone.state
     _ = zone.area
+
+    zips = []
+    for zip in zone.zips:
+        zips.append(zip)
 
     return CustomerZone(
                 id=customer_zone.id,
                 customer=customer,
                 zone=zone,
+                zone_size=zone_size,
+                zips=zips,
                 policies=policies,
                 policy_count=customer_zone.policy_count,
                 tiv=customer_zone.tiv,
@@ -148,6 +176,7 @@ class Zone(ObjectType):
     state = String()
     area = Float()
     zips = List(lambda: Zip)
+    counties = List(lambda: County)
     fires = List(lambda: Fire)
 
 
@@ -205,6 +234,11 @@ class Fire(ObjectType):
 class Zip(ObjectType):
     id = ID()
     code = String()
+
+
+class County(ObjectType):
+    id = ID()
+    name = String()
 
 
 class Query(ObjectType):

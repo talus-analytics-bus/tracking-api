@@ -1,4 +1,4 @@
-from pony.orm import set_sql_debug, Database, PrimaryKey, Required, Optional, Set
+from pony.orm import set_sql_debug, Database, PrimaryKey, Required, Set
 import os
 # from enum import Enum
 
@@ -31,6 +31,7 @@ class Zone(db.Entity):
     area = Required(float)
     zips = Set("Zip")
     fires = Set("Fire")
+    county = Required(str)
     customer_zones = Set("CustomerZone")
 
 
@@ -41,7 +42,7 @@ class Breakdown(db.Entity):
     moderate_percent = Required(float)
     high_percent = Required(float)
     extreme_percent = Required(float)
-    customer_zone = Optional("CustomerZone")
+    customer_zone = Set("CustomerZone")
 
 
 class CustomerZone(db.Entity):
