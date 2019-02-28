@@ -39,8 +39,8 @@ class Breakdown(db.Entity):
     none_percent = Required(float)
     minimal_percent = Required(float)
     moderate_percent = Required(float)
-    high_percent = Required(str)
-    extreme_percent = Required(str)
+    high_percent = Required(float)
+    extreme_percent = Required(float)
     customer_zone = Optional("CustomerZone")
 
 
