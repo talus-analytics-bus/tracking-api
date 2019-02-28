@@ -24,6 +24,13 @@ class Zip(db.Entity):
     zones = Set("Zone")
 
 
+class County(db.Entity):
+    id = PrimaryKey(int, auto=True)
+    name = Required(str)
+    fips = Required(str)
+    zones = Set("Zone")
+
+
 class Zone(db.Entity):
     id = PrimaryKey(int, auto=True)
     size = Required(str)
@@ -31,7 +38,7 @@ class Zone(db.Entity):
     area = Required(float)
     zips = Set("Zip")
     fires = Set("Fire")
-    county = Required(str)
+    counties = Set("County")
     customer_zones = Set("CustomerZone")
 
 

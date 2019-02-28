@@ -85,8 +85,8 @@ def get_company(id):
             zips.append(zip.code)
 
         counties = []
-        for county in zone.county:
-            counties.append(county)
+        for county in zone.counties:
+            counties.append(county.name)
 
         breakdown = company_zone.breakdown
         _ = breakdown.none_percent
@@ -239,6 +239,7 @@ class Zip(ObjectType):
 class County(ObjectType):
     id = ID()
     name = String()
+    fips = String()
 
 
 class Query(ObjectType):
