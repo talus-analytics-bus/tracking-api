@@ -1,51 +1,10 @@
 import functools
 # from enum import Enum
-from graphene import Schema, ObjectType, String, ID, Int, Float, List, Field
-# from graphene.types.json import JSONString
-# List, Float, Field, Union
-# from graphene.types.datetime import Date
-from pony.orm import db_session, Database
-from pony.orm.core import Entity
+from graphene import Schema, ObjectType, String, Int, Float, List, Field, Boolean
 
-from models import Company as c
-from models import CustomerZone as cz
-# from pandas.io.json import json_normalize
+from models import FundingJSON
 
-db = Database()
-
-
-def recursive_to_dict(dataset, _has_iterated=False, **kwargs):
-    if isinstance(dataset, Entity):
-        dataset = dataset.to_dict(**kwargs)
-
-    delete_these = []
-    for key, value in dataset.items():
-        if _has_iterated:
-            if isinstance(value, (list, tuple)):
-                for iterable in value:
-                    if isinstance(iterable, Entity):
-                        delete_these.append(key)
-                        break
-                continue
-        else:
-            if isinstance(value, (list, tuple)):
-                value_list = []
-                for iterable in value:
-                    if isinstance(iterable, Entity):
-                        value_list.append(recursive_to_dict(iterable, True,
-                                                            **kwargs))
-                dataset[key] = value_list
-
-        if isinstance(value, Entity) and not _has_iterated:
-            dataset[key] = recursive_to_dict(value, True, **kwargs)
-
-        elif isinstance(value, Entity) and _has_iterated:
-            delete_these.append(key)
-
-    for deletable_key in delete_these:
-        del dataset[deletable_key]
-
-    return dataset
+funders, recipients, all_funders, all_recipients = FundingJSON()
 
 
 def cached(func):
@@ -65,206 +24,247 @@ def cached(func):
     return wrapper
 
 
-@db_session
-def get_company(id):
+def parse_capacities(cap_list):
+    parsed_list = []
+    for capacity in cap_list:
+        parsed_list.append(CoreCapacity(name=capacity))
 
-    company = c[id]
-
-    policy_count = 0
-    tiv = 0
-    for policy in company.policies:
-        policy_count += 1
-        tiv += policy.tiv
-
-    zones = []
-    for company_zone in company.zones:
-        zone = company_zone.zone
-
-        zips = []
-        for zip in zone.zips:
-            zips.append(zip.code)
-
-        counties = []
-        for county in zone.counties:
-            counties.append(county.name)
-
-        breakdown = company_zone.breakdown
-        _ = breakdown.none_percent
-        _ = breakdown.minimal_percent
-        _ = breakdown.moderate_percent
-        _ = breakdown.high_percent
-        _ = breakdown.extreme_percent
-
-        _ = zone.id
-        _ = zone.size
-        _ = zone.state
-        _ = zone.area
-
-        company_zone.zips = zips
-        company_zone.counties = counties
-        company_zone.breakdown = breakdown
-        zones.append(company_zone)
-
-    return Company(
-                 id=company.id,
-                 name=company.name,
-                 policy_count=policy_count,
-                 tiv=tiv,
-                 zones=zones)
+    return parsed_list
 
 
-@db_session
-def get_customer_zone(id):
+def parse_trans(trans_list):
+    parsed_list = []
+    for transaction in trans_list:
+        parsed_list.append(
+            Transaction(
+                type=transaction['type'],
+                amount=transaction['amount'],
+                cy=transaction['cy'],
+                currency=transaction['currency'],
+            )
+        )
 
-    customer_zone = cz[id]
-
-    policies = []
-    for policy in customer_zone.policies:
-        policies.append(policy)
-
-    breakdown = customer_zone.breakdown
-    _ = breakdown.none_percent
-    _ = breakdown.minimal_percent
-    _ = breakdown.moderate_percent
-    _ = breakdown.high_percent
-    _ = breakdown.extreme_percent
-
-    customer = customer_zone.customer
-    _ = customer.name
-
-    zone = customer_zone.zone
-    _ = zone.id
-    zone_size = zone.size
-    _ = zone.state
-    _ = zone.area
-
-    zips = []
-    for zip in zone.zips:
-        zips.append(zip)
-
-    return CustomerZone(
-                id=customer_zone.id,
-                customer=customer,
-                zone=zone,
-                zone_size=zone_size,
-                zips=zips,
-                policies=policies,
-                policy_count=customer_zone.policy_count,
-                tiv=customer_zone.tiv,
-                pml=customer_zone.pml,
-                pml_to_tiv=customer_zone.pml / customer_zone.tiv,
-                pml_50=customer_zone.pml_50,
-                pml_100=customer_zone.pml_100,
-                pml_250=customer_zone.pml_250,
-                mean_bp=customer_zone.mean_bp,
-                breakdown=breakdown,
-                )
+    return parsed_list
 
 
-class Breakdown(ObjectType):
-    id = ID()
-    none_percent = Float()
-    minimal_percent = Float()
-    moderate_percent = Float()
-    high_percent = Float()
-    extreme_percent = Float()
+def parse_project(proj):
+    transactions = parse_trans(proj['transactions'])
+    capacities = parse_capacities(proj['core_capacities'])
+
+    return Project(
+        project_id=proj['project_id'],
+        project_name=proj['project_name'],
+        funder_ref=proj['funder_ref'],
+        donor_sector=proj['donor_sector'],
+        donor_code=proj['donor_code'],
+        donor_name=proj['donor_name'],
+        recipient_country=proj['recipient_country'],
+        recipient_sector=proj['recipient_sector'],
+        recipient_name=proj['recipient_name'],
+        transactions=transactions,
+        total_committed=proj['total_committed'],
+        total_spent=proj['total_spent'],
+        total_currency=proj['total_currency'],
+        # source = Field(Source),
+        # spent_by_year = Field(ByYear),
+        # committed_by_year = Field(ByYear),
+        core_capacities=capacities,
+        amounts_duplicated=proj['amounts_duplicated'],
+    )
 
 
-class Zone(ObjectType):
-    id = ID()
-    size = String()
-    state = String()
-    area = Float()
-    zips = List(lambda: Zip)
-    counties = List(lambda: County)
-    fires = List(lambda: Fire)
+def get_all_funders():
+    funders_list = []
+
+    for funder in all_funders:
+        funders_list.append(FunderName(
+                                       code=funder[0],
+                                       name=funder[1]
+        ))
+
+    return FundersList(funders=funders_list)
 
 
-class Policy(ObjectType):
-    company = Field(lambda: Company)
-    id = ID()
-    status = String()
-    address = String()
-    city = String()
-    county = String()
-    state = String()
-    zip = String()
-    tiv = Int()
-    latitude = Float()
-    longitude = Float()
-    model_type = String()
-    loss_type = String()
-    overall_risk_class = String()
-    severity_class = String()
-    frequency_class = String()
-    distance_to_high_hazard = Float()
-    customer_zone = Field(lambda: CustomerZone)
+def get_all_recipients():
+    recipients_list = []
+
+    for recipient in all_recipients:
+        recipients_list.append(RecipientName(
+                                       country=recipient[0],
+                                       name=recipient[1]
+        ))
+    return RecipientsList(recipients=recipients_list)
 
 
-class CustomerZone(ObjectType):
-    id = ID()
-    customer = Field(lambda: Company)
-    zone = Field(Zone)
-    policies = List(Policy)
-    policy_count = Int()
-    tiv = Float()
-    pml = Float()
-    pml_to_tiv = Float()
-    pml_50 = Float()
-    pml_100 = Float()
-    pml_250 = Float()
-    mean_bp = Float()
-    breakdown = Field(Breakdown)
+def get_funder(country, year='all'):
+    country_data = funders[country]
+
+    if year == 'all':
+        projects = []
+
+        for project in country_data:
+            projects.append(parse_project(project))
+
+        return Funder(
+            code=country,
+            projects=projects
+        )
+    else:
+        country_years = []
+
+        for project in country_data:
+            for transaction in project['transactions']:
+
+                if int(transaction['cy']) == year:
+                    country_years.append(parse_project(project))
+
+        return Funder(
+            code=country,
+            projects=country_years,
+        )
 
 
-class Company(ObjectType):
-    id = ID()
-    name = String()
-    tiv = Float()
-    policy_count = Int()
-    policies = List(Policy)
-    zones = List(CustomerZone)
+def get_recipient(country, year='all'):
+    country_data = recipients[country]
+
+    if year == 'all':
+        projects = []
+
+        for project in country_data:
+            projects.append(parse_project(project))
+
+        return Recipient(
+            country=country,
+            projects=projects
+        )
+    else:
+        country_years = []
+
+        for project in country_data:
+            for transaction in project['transactions']:
+
+                if int(transaction['cy']) == year:
+                    country_years.append(parse_project(project))
+
+        return Recipient(
+            country=country,
+            projects=country_years,
+        )
 
 
-class Fire(ObjectType):
-    id = ID()
-    name = String()
-
-
-class Zip(ObjectType):
-    id = ID()
+class Funder(ObjectType):
     code = String()
+    projects = List(lambda: Project)
 
 
-class County(ObjectType):
-    id = ID()
+class FunderName(ObjectType):
+    code = String()
     name = String()
-    fips = String()
+
+
+class FundersList(ObjectType):
+    funders = List(FunderName)
+
+
+class Recipient(ObjectType):
+    country = String()
+    projects = List(lambda: Project)
+
+
+class RecipientName(ObjectType):
+    country = String()
+    name = String()
+
+
+class RecipientsList(ObjectType):
+    recipients = List(RecipientName)
+
+
+class Transaction(ObjectType):
+    type = String()
+    amount = Float()
+    cy = Int()
+    currency = String()
+
+
+class Source(ObjectType):
+    name = String()
+    id = String()
+    added_by = String()
+    mmddyyyy_added = String()
+
+
+class ByYear(ObjectType):
+    year = Int()
+    amount = Int()
+
+
+class CoreCapacity(ObjectType):
+    name = String()
+
+
+class Project(ObjectType):
+    project_id = String()
+    project_name = String()
+    funder_ref = String()
+    donor_sector = String()
+    donor_code = String()
+    donor_name = String()
+    recipient_country = String()
+    recipient_sector = String()
+    recipient_name = String()
+    transactions = List(Transaction)
+    total_committed = Float()
+    total_spent = Float()
+    total_currency = String()
+    source = Field(Source)
+    spent_by_year = Field(ByYear)
+    committed_by_year = Field(ByYear)
+    core_capacities = List(CoreCapacity)
+    amounts_duplicated = Boolean()
 
 
 class Query(ObjectType):
 
-    company = Field(
-        Company,
-        id=ID(required=True),
+    funder = Field(
+        Funder,
+        code=String(required=True),
+        year=Int()
     )
 
-    customer_zone = Field(
-        CustomerZone,
-        id=ID(required=True),
+    recipient = Field(
+        Recipient,
+        country=String(required=True),
+        year=Int()
+    )
+
+    funders_list = Field(
+        FundersList,
+    )
+
+    recipients_list = Field(
+        RecipientsList,
     )
 
     @cached
-    @db_session
-    def resolve_company(self, info, id=1):
-        company_data = get_company(id)
-        return company_data
+    def resolve_funder(self, info, code='who', year='all'):
+        funder_data = get_funder(code, year)
+        return funder_data
 
     @cached
-    @db_session
-    def resolve_customer_zone(self, info, id=1):
-        cz_data = get_customer_zone(id)
-        return cz_data
+    def resolve_recipient(self, info, country='who', year='all'):
+        recipient_data = get_recipient(country, year)
+        return recipient_data
+
+    @cached
+    def resolve_funders_list(self, info):
+        all_funder_data = get_all_funders()
+        return all_funder_data
+
+    @cached
+    def resolve_recipients_list(self, info):
+        all_recipient_data = get_all_recipients()
+        return all_recipient_data
 
 
-schema = Schema(query=Query, types=[Company, CustomerZone])
+schema = Schema(query=Query, types=[Funder, Recipient, FundersList, RecipientsList])

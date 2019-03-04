@@ -1,98 +1,36 @@
-from pony.orm import set_sql_debug, Database, PrimaryKey, Required, Set
 import os
-# from enum import Enum
-
-db = Database()
-
-
-class Company(db.Entity):
-    id = PrimaryKey(int, auto=True)
-    name = Required(str)
-    policies = Set("Policy")
-    zones = Set("CustomerZone")
+from flask import json  # , current_app as app
+from collections import defaultdict
 
 
-class Fire(db.Entity):
-    id = PrimaryKey(int, auto=True)
-    name = Required(str)
-    zones = Set("Zone")
+def FundingJSON():
+    # filename = os.path.join(app.static_folder, 'data', 'funding_data.json')
+    filename = os.path.join('/Users/trae/git_repositories/tracking-api/static',
+                            'data', 'funding_data.json')
 
+    with open(filename) as funding_file:
+        data = json.load(funding_file)
 
-class Zip(db.Entity):
-    id = PrimaryKey(int, auto=True)
-    code = Required(str)
-    zones = Set("Zone")
+    funders = defaultdict(lambda: [])
+    recipients = defaultdict(lambda: [])
 
+    all_funders = set()
+    all_recipients = set()
 
-class County(db.Entity):
-    id = PrimaryKey(int, auto=True)
-    name = Required(str)
-    fips = Required(str)
-    zones = Set("Zone")
+    for project in data:
+        try:
+            try:
+                if project['donor_amount_unspec'] or project['recipient_amount_unspec']:
+                    project['amounts_duplicated'] = True
+            except KeyError:
+                project['amounts_duplicated'] = False
 
+            funders[project['donor_code']].append(project)
+            recipients[project['recipient_country']].append(project)
 
-class Zone(db.Entity):
-    id = PrimaryKey(int, auto=True)
-    size = Required(str)
-    state = Required(str)
-    area = Required(float)
-    zips = Set("Zip")
-    fires = Set("Fire")
-    counties = Set("County")
-    customer_zones = Set("CustomerZone")
+            all_funders.add((project['donor_code'], project['donor_name']))
+            all_recipients.add((project['recipient_country'], project['recipient_name']))
+        except KeyError:
+            print(project['project_name'])
 
-
-class Breakdown(db.Entity):
-    id = PrimaryKey(int, auto=True)
-    none_percent = Required(float)
-    minimal_percent = Required(float)
-    moderate_percent = Required(float)
-    high_percent = Required(float)
-    extreme_percent = Required(float)
-    customer_zone = Set("CustomerZone")
-
-
-class CustomerZone(db.Entity):
-    id = PrimaryKey(int, auto=True)
-    customer = Required(Company)
-    zone = Required(Zone)
-    policies = Set("Policy")
-    policy_count = Required(int)
-    tiv = Required(float)
-    pml = Required(float)
-    pml_50 = Required(float)
-    pml_100 = Required(float)
-    pml_250 = Required(float)
-    mean_bp = Required(float)
-    breakdown = Required(Breakdown)
-
-
-class Policy(db.Entity):
-    id = PrimaryKey(int, auto=True)
-    company = Required(Company)
-    status = Required(str)
-    address = Required(str)
-    city = Required(str)
-    county = Required(str)
-    state = Required(str)
-    zip = Required(str)
-    tiv = Required(int)
-    latitude = Required(float)
-    longitude = Required(float)
-    model_type = Required(str)
-    loss_type = Required(str)
-    overall_risk_class = Required(str)
-    severity_class = Required(str)
-    frequency_class = Required(str)
-    distance_to_high_hazard = Required(float)
-    customer_zone = Required(CustomerZone)
-
-
-set_sql_debug(True)
-
-usr = os.environ["TALUS_DEV_USR"]
-pwd = os.environ["TALUS_DEV_PWD"]
-host = 'talus-dev.cvsrrvlopzxr.us-west-1.rds.amazonaws.com'
-
-db.bind(provider='postgres', user=usr, password=pwd, host=host, database='redzone_ui')
-db.generate_mapping()  # create_tables=True)
+    return (funders, recipients, all_funders, all_funders)

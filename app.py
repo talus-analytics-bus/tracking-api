@@ -4,7 +4,7 @@ from flask_graphql import GraphQLView
 from schema import schema
 
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path="", static_folder="static")
 app.debug = True
 
 app.add_url_rule('/graphql',
