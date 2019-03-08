@@ -35,6 +35,9 @@ def parse_capacities(cap_list):
 def parse_trans(trans_list):
     parsed_list = []
     for transaction in trans_list:
+        if transaction['type'] == 'expenditure':
+            transaction['type'] = 'disbursement'
+
         parsed_list.append(
             Transaction(
                 type=transaction['type'],
@@ -51,6 +54,22 @@ def parse_project(proj):
     transactions = parse_trans(proj['transactions'])
     capacities = parse_capacities(proj['core_capacities'])
 
+    try:
+        if proj['donor_amount_unspec'] == 'true':
+            donor_amount_unspec = True
+        else:
+            donor_amount_unspec = False
+    except KeyError:
+        donor_amount_unspec = False
+
+    try:
+        if proj['recipient_amount_unspec'] == 'true':
+            recipient_amount_unspec = True
+        else:
+            recipient_amount_unspec = False
+    except KeyError:
+        recipient_amount_unspec = False
+
     return Project(
         project_id=proj['project_id'],
         project_name=proj['project_name'],
@@ -65,11 +84,10 @@ def parse_project(proj):
         total_committed=proj['total_committed'],
         total_spent=proj['total_spent'],
         total_currency=proj['total_currency'],
-        # source = Field(Source),
-        # spent_by_year = Field(ByYear),
-        # committed_by_year = Field(ByYear),
+        source=proj['source'],
         core_capacities=capacities,
-        amounts_duplicated=proj['amounts_duplicated'],
+        donor_amount_unspec=donor_amount_unspec,
+        recipient_amount_unspec=recipient_amount_unspec,
     )
 
 
@@ -217,11 +235,12 @@ class Project(ObjectType):
     total_committed = Float()
     total_spent = Float()
     total_currency = String()
-    source = Field(Source)
+    source = String()
     spent_by_year = Field(ByYear)
     committed_by_year = Field(ByYear)
     core_capacities = List(CoreCapacity)
-    amounts_duplicated = Boolean()
+    donor_amount_unspec = Boolean()
+    recipient_amount_unspec = Boolean()
 
 
 class Query(ObjectType):

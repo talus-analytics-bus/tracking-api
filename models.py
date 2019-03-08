@@ -8,7 +8,7 @@ def FundingJSON():
     filename = os.path.join('/Users/trae/git_repositories/tracking-api/static',
                             'data', 'funding_data.json')
 
-    with open(filename) as funding_file:
+    with open(filename, encoding='utf-8') as funding_file:
         data = json.load(funding_file)
 
     funders = defaultdict(lambda: [])
@@ -20,10 +20,9 @@ def FundingJSON():
     for project in data:
         try:
             try:
-                if project['donor_amount_unspec'] or project['recipient_amount_unspec']:
-                    project['amounts_duplicated'] = True
+                project['source'] = project['source']['name']
             except KeyError:
-                project['amounts_duplicated'] = False
+                project['source'] = None
 
             funders[project['donor_code']].append(project)
             recipients[project['recipient_country']].append(project)
